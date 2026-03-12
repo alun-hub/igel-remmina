@@ -1,0 +1,13 @@
+{
+  "binaries": ["remmina-linux64.tar.gz"],
+  "licenses": [
+    {
+      "name": "Remmina",
+      "text": "Licensed under the GNU General Public License v2 or later. See https://github.com/FreeRDP/Remmina/blob/master/LICENSE"
+    },
+    {
+      "name": "FreeRDP (bundled RDP plugin)",
+      "text": "Licensed under the Apache License, Version 2.0. See https://github.com/FreeRDP/FreeRDP/blob/master/LICENSE"
+    }
+  ]
+}

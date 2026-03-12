@@ -1,0 +1,20 @@
+{
+  "name": "remmina",
+  "version": "1.4.35",
+  "author": "Custom",
+  "vendor": "Remmina Team",
+  "categories": ["Miscellaneous"],
+  "icons": {
+    "app": "app.png",
+    "monochrome": "app-mono.png"
+  },
+  "rw_partition": {
+    "size": "small",
+    "mountpoint": "/userhome/.config/remmina",
+    "flags": ["compressed"],
+    "post_mount": "chown user /userhome/.config/remmina"
+  },
+  "summary": {
+    "en": "Remmina remote desktop client with smartcard passthrough"
+  }
+}
