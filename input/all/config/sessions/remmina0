@@ -1,0 +1,8 @@
+#!/bin/bash
+# Remmina session launcher for IGEL OS 12
+# App is mounted at /services/remmina/
+
+export LD_LIBRARY_PATH=/services/remmina/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+export GDK_BACKEND=x11
+
+exec /services/remmina/usr/bin/remmina "$@"

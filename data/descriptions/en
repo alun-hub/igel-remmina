@@ -1,0 +1,6 @@
+Remmina remote desktop client with FreeRDP 3.x (NLA + smartcard support).
+
+# Remmina
+Remmina is a remote desktop client that supports RDP, VNC, SSH, SPICE and more.
+This build includes FreeRDP 3.x with full NLA authentication (Kerberos/NTLM via CredSSP)
+and smartcard passthrough support for RDP sessions.

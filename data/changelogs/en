@@ -1,0 +1,3 @@
+* Initial release of Remmina 1.4.38 with FreeRDP 3.x for IGEL OS 12.
+    -- Built with FreeRDP 3.10.3 for NLA and smartcard passthrough support.
+    -- Supports RDP, VNC, SSH, SPICE protocols.

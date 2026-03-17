@@ -1,20 +1,24 @@
 {
   "name": "remmina",
-  "version": "1.4.35",
-  "author": "Custom",
-  "vendor": "Remmina Team",
-  "categories": ["Miscellaneous"],
+  "version": "1.4.38+0.1.rc.1",
+  "public_version": "1.4.38 BUILD 1.0 RC 1",
+  "release": "",
+  "author": "The IGEL community",
+  "vendor": "Remmina",
+  "summary": {
+    "en": "Remmina (Community)"
+  },
+  "categories": [
+    "Miscellaneous"
+  ],
   "icons": {
-    "app": "app.png",
-    "monochrome": "app-mono.png"
+    "app": "app.svg",
+    "monochrome": "monochrome.svg"
   },
   "rw_partition": {
     "size": "small",
-    "mountpoint": "/userhome/.config/remmina",
-    "flags": ["compressed"],
-    "post_mount": "chown user /userhome/.config/remmina"
-  },
-  "summary": {
-    "en": "Remmina remote desktop client with smartcard passthrough"
+    "flags": [
+      "compressed"
+    ]
   }
 }

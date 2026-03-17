@@ -1,14 +1,9 @@
-{
-  "sources": [
-    {
-      "src": "remmina-linux64.tar.gz",
-      "dest": "/",
-      "mode": "755",
-      "exclude": [
-        "*/share/doc/*",
-        "*/share/man/*",
-        "*/share/locale/*"
-      ]
-    }
-  ]
-}
+[
+  {
+    "source": ".*",
+    "excludes": [
+      "usr/share/applications.*",
+      "usr/share/doc.*"
+    ]
+  }
+]
