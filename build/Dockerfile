@@ -1,8 +1,8 @@
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV FREERDP_VERSION=3.10.3
-ENV REMMINA_VERSION=v1.4.38
+ENV FREERDP_VERSION=3.24.0
+ENV REMMINA_VERSION=v1.4.43
 
 # --- Build dependencies ---
 RUN apt-get update && apt-get install -y \
