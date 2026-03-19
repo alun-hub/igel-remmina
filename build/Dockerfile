@@ -1,14 +1,14 @@
-FROM ubuntu:22.04
+FROM debian:bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV FREERDP_VERSION=3.24.0
 ENV REMMINA_VERSION=v1.4.43
 
-# --- Build dependencies ---
+# --- Grundberoenden ---
 RUN apt-get update && apt-get install -y \
     build-essential cmake ninja-build pkg-config git wget curl \
     python3 python3-pip \
-    # FreeRDP build dependencies
+    # FreeRDP byggberoenden
     libssl-dev \
     libx11-dev libxext-dev libxinerama-dev libxcursor-dev \
     libxv-dev libxkbfile-dev libxrandr-dev libxi-dev libxrender-dev \
@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
     libkrb5-dev libgssapi-krb5-2 \
     libcjson-dev \
     libsdl2-dev libsdl2-ttf-dev \
-    # Remmina build dependencies
+    # Remmina byggberoenden
     libgtk-3-dev libglib2.0-dev \
     libvte-2.91-dev \
     libssh-dev \
@@ -33,11 +33,11 @@ RUN apt-get update && apt-get install -y \
     libjson-glib-dev \
     libcurl4-openssl-dev \
     gettext \
-    # Packaging tools
-    unzip dpkg-dev \
+    # För att packa och ladda ner .deb
+    unzip dpkg-dev patchelf \
     && rm -rf /var/lib/apt/lists/*
 
-# --- Build FreeRDP 3.x from source ---
+# --- Bygg FreeRDP 3.x från källkod ---
 WORKDIR /build
 RUN git clone --branch ${FREERDP_VERSION} --depth 1 \
     https://github.com/FreeRDP/FreeRDP.git freerdp
@@ -65,7 +65,7 @@ RUN cmake -GNinja \
     && ninja -C build \
     && ninja -C build install
 
-# --- Build Remmina from source ---
+# --- Bygg Remmina från källkod ---
 WORKDIR /build
 RUN git clone --branch ${REMMINA_VERSION} --depth 1 \
     https://gitlab.com/Remmina/Remmina.git remmina
@@ -87,10 +87,10 @@ RUN cmake -GNinja \
     && ninja -C build \
     && DESTDIR=/output ninja -C build install
 
-# Install FreeRDP libs to /output as well
+# Installera även FreeRDP-libs till /output
 RUN DESTDIR=/output ninja -C /build/freerdp/build install
 
-# Strip headers, cmake files, pkgconfig and desktop files
+# Städa bort onödigt
 RUN rm -rf /output/usr/include \
            /output/usr/lib/x86_64-linux-gnu/cmake \
            /output/usr/lib/x86_64-linux-gnu/pkgconfig \
