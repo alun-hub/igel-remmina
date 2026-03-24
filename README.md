@@ -1,117 +1,148 @@
 # Remmina for IGEL OS 12
 
-Remmina remote desktop client packaged as an IGEL OS 12 community app.
-Supports RDP (with NLA, Kerberos, smartcard passthrough), VNC, SSH and SPICE.
+Remmina 1.4.43 + FreeRDP 3.x packaged as an IGEL OS 12 community app.
+Supports RDP with NLA (Kerberos/NTLM via CredSSP) and smartcard passthrough via pcscd.
 
-Built on **Debian Bookworm** — the same base as IGEL OS — to avoid library version mismatches.
-Bundles all libraries not present in IGEL OS, including FreeRDP 3.x, libssh, and avahi.
+## Components
 
-## What's included
+| Component       | Version          | Notes                                              |
+|-----------------|------------------|----------------------------------------------------|
+| Remmina         | 1.4.43           | Latest stable                                      |
+| FreeRDP         | 3.24.0           | Required for NLA + smartcard (IGEL OS ships 2.x)   |
+| Build base      | Debian Bookworm  | Must match IGEL OS to avoid library mismatches     |
+| IGEL OS clean   | 12.7.4           | Strips files already present in IGEL OS            |
+| Package size    | ~6 MB            |                                                    |
 
-| Component | Version | Notes |
-|---|---|---|
-| Build base | Debian Bookworm | Same as IGEL OS — eliminates lib mismatches |
-| FreeRDP | 3.24.0 | Bundled (IGEL OS only ships FreeRDP 2) |
-| Remmina | 1.4.43 | Latest stable with FreeRDP 3.x support |
-| libssh.so.4 | bundled | IGEL OS does not include libssh |
-| libavahi-ui-gtk3 + avahi libs | bundled | Service discovery support |
-| libvncclient | bundled | VNC support |
-| libsodium | bundled | Encryption support |
-| IGEL OS clean list | 12.7.4 | Files already in IGEL OS are stripped |
-| Package size | ~6 MB | |
+### Bundled libraries (not present in IGEL OS)
 
-### Key build details
+| Library               | Reason                                  |
+|-----------------------|-----------------------------------------|
+| libfreerdp3.so        | IGEL OS only ships FreeRDP 2            |
+| libfreerdp-client3.so |                                         |
+| libwinpr3.so          |                                         |
+| libwinpr-tools3.so    |                                         |
+| libuwac0.so           |                                         |
+| libssh.so.4           | Not present in IGEL OS                  |
+| libavahi-ui-gtk3.so   | Not present in IGEL OS                  |
+| libavahi-client.so    |                                         |
+| libavahi-common.so    |                                         |
+| libavahi-glib.so      |                                         |
+| libvncclient.so       | VNC support                             |
+| libsodium.so          | Cryptography                            |
 
-- `remmina-plugin-python_wrapper.so` is **excluded** (requires `libpython3.10`, not needed for RDP)
-- Plugin RPATH patched to `$ORIGIN/../..` so FreeRDP 3 libs are found at runtime
-- `patchelf` added to Dockerfile for RPATH fixing
-- FreeRDP 3 lib RPATHs set to `$ORIGIN`
+FFmpeg and ICU are **not** bundled — Bookworm versions match IGEL OS exactly.
 
 ---
 
-## Build
+## Step 1 — Build remmina.tar.bz2
 
 ### Prerequisites
 
 - Podman or Docker installed and running
 - Internet access (to clone FreeRDP and Remmina source)
-- IGEL App SDK (`igelpkg` container image loaded)
 
-### Step 1 — Build the binary tarball
+### Run the build script
 
 ```bash
 cd build
 ./build.sh 12.7.4    # argument = IGEL OS version for the clean list
 ```
 
-This builds a container image based on Debian Bookworm, compiles FreeRDP 3.x and Remmina
-from source, strips files already present in IGEL OS, and produces `remmina.tar.bz2` in
-the project root.
+This script:
+1. Builds a Debian Bookworm container image
+2. Compiles FreeRDP 3.x from source (with PCSC, KRB5, GSSAPI, FFMPEG)
+3. Compiles Remmina from source against FreeRDP 3.x
+4. Strips files already present in IGEL OS (using community clean lists)
+5. Patches RPATH in all binaries with `patchelf`
+6. Produces `remmina.tar.bz2` in the project root
 
-> The build takes ~20–30 minutes on first run (clones and compiles from source).
+> First build takes ~20–30 minutes. Subsequent builds reuse the container layer cache.
 
-### Step 2 — Package with igelpkg
+**Why Debian Bookworm?** IGEL OS 12 is based on Debian Bookworm. Building on Ubuntu 22.04
+causes runtime crashes due to mismatched library versions (ICU 70 vs 72, FFmpeg .so.5 vs .so.6,
+libssl, etc.). Bookworm eliminates all of these.
 
-```bash
-# Load the IGEL SDK image (once)
-podman load -i ../igelpkg.tar    # or: docker load -i ../igelpkg.tar
+### RPATH patching
 
-# Copy the binary tarball where igelpkg expects it
-cp remmina.tar.bz2 /tmp/remmina.tar.bz2
+All binaries are patched with `patchelf` so they find their bundled libraries without
+needing `LD_LIBRARY_PATH` in most cases:
 
-# Run igelpkg build inside the SDK container
-podman run --rm \
-  -v /tmp/remmina.tar.bz2:/tmp/remmina.tar.bz2 \
-  -v $(pwd):/app \
-  igelpkg:latest \
-  bash -c 'cd /app && igelpkg build -a x64 -sp'
-```
+| Binary / library                    | RPATH                              |
+|-------------------------------------|------------------------------------|
+| `usr/bin/remmina`                   | `$ORIGIN/../lib/x86_64-linux-gnu`  |
+| `usr/lib/.../remmina/plugins/*.so`  | `$ORIGIN/../..`                    |
+| FreeRDP 3 libs                      | `$ORIGIN`                          |
 
-Result: `igelpkg.output/remmina-*.ipkg`
-
-For debugging (keeps temp files and log): `igelpkg build -a x64 -sp -kl`
-
-### Step 3 — Upload to IGEL App Creator Portal
-
-Upload both:
-- The **recipe zip** (project directory zipped, with `app.json` at root)
-- The **binary tarball** `remmina.tar.bz2`
-
-The portal signs the package with the community certificate and makes it available
-for device installation.
+The session launch script still exports `LD_LIBRARY_PATH` as a fallback for avahi
+and GTK dialogs.
 
 ---
 
-## Installation on IGEL device
+## Step 2 — Package with IGEL App Creator Portal
 
-### Step 1 — Place the community certificate
+The IGEL App Creator Portal at https://app.igel.com builds and signs the `.ipkg` file.
 
-The community package store certificate must be present **before** the device reboots
-so that `igelpkgd` can verify and load the community package.
+### Create a recipe zip
 
+```bash
+# Run from the project root
+zip -r /tmp/remmina-recipe.zip app.json data/ igel/ input/
+```
+
+### Upload to the portal
+
+1. Go to https://app.igel.com → **App Creator**
+2. Create a new build, choose **Upload recipe (zip)**
+3. Upload `remmina-recipe.zip` as the recipe
+4. Upload `remmina.tar.bz2` as the thirdparty binary
+5. Click **Build**
+6. Download the signed `.ipkg` file
+
+> **Why zip upload and not GitHub integration?**
+> `igel/thirdparty.json` points to `file:///tmp/remmina.tar.bz2`. When using the GitHub
+> integration the portal interprets this as "binary already on server" and skips the upload
+> step — then fails because the file isn't actually there. To use GitHub integration instead,
+> upload `remmina.tar.bz2` to a GitHub Release and update the URL in `thirdparty.json`.
+
+---
+
+## Step 3 — Install on the IGEL device
+
+### Place the community certificate (first time only)
+
+IGEL OS must trust the community certificate before it can install community packages.
 Copy `community.crt` (included in this repo) to the device:
 
 ```bash
-mkdir -p /wfs/cmty/certs
+mkdir -p /wfs/cmty/certs/
 cp community.crt /wfs/cmty/certs/
+reboot    # igelpkgd loads the cert into the kernel keyring at boot
 ```
 
-### Step 2 — Reboot the device
+### Install the package
 
 ```bash
-reboot
+igelpkgctl install -f remmina-1.4.43+0.1.rc.1.ipkg
+reboot    # required for the session script to activate
 ```
 
-After reboot, `igelpkgd` loads the community certificate and the device is ready
-to install community packages.
-
-### Step 3 — Install the package
+### Uninstall
 
 ```bash
-igelpkgctl install -f remmina-*.ipkg
+igelpkgctl uninstall remmina
 ```
 
-Or install via IGEL UMS / App Portal.
+### Verify
+
+```bash
+# Session script must exist after reboot
+ls -la /config/sessions/remmina0
+
+# Check the RDP plugin loaded
+ldd /services/remmina/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-rdp.so
+```
+
+Click the Remmina icon in the IGEL taskbar to launch.
 
 ---
 
@@ -119,68 +150,121 @@ Or install via IGEL UMS / App Portal.
 
 ```
 .
-├── app.json                    # App metadata (name, version, author)
-├── community.crt               # Community package store certificate
+├── app.json                       # App metadata (name, version, author)
+├── community.crt                  # Community package store certificate
 ├── igel/
-│   ├── thirdparty.json         # Binary source URL + licenses
-│   ├── install.json            # File selection rules
-│   ├── dirs.json               # Persistent config directories
-│   └── checksums.json          # Checksum verification
+│   ├── thirdparty.json            # Binary source URL + licenses
+│   ├── install.json               # File selection rules from tarball
+│   ├── dirs.json                  # Persistent directories for user config
+│   └── checksums.json             # Checksum verification
 ├── data/
-│   ├── app.svg                 # App icon (colour)
-│   ├── monochrome.svg          # App icon (monochrome)
-│   ├── descriptions/en         # App description for portal
-│   ├── changelogs/en           # Release notes
+│   ├── app.svg / monochrome.svg   # App icons
+│   ├── descriptions/en            # App description for portal
+│   ├── changelogs/en              # Release notes
 │   └── config/
-│       ├── config.param        # IGEL session definition
-│       ├── ui.json             # IGEL Setup UI structure
-│       └── translation.json    # i18n strings
+│       ├── config.param           # IGEL session definition
+│       ├── ui.json                # IGEL Setup UI structure
+│       └── translation.json       # i18n strings
+├── input/
+│   └── all/
+│       ├── config/sessions/
+│       │   └── remmina0           # Session launch script (placed on device at install)
+│       └── usr/share/icons/...    # App icon for system icon theme
 └── build/
-    ├── Dockerfile              # Debian Bookworm build environment
-    └── build.sh                # Orchestration script
+    ├── Dockerfile                 # Debian Bookworm build environment
+    └── build.sh                   # Orchestration script
 ```
+
+---
+
+## How the IGEL session system works
+
+When the user clicks the Remmina icon in the IGEL taskbar, IGEL executes
+`/config/sessions/remmina0`. This file is placed on the device from
+`input/all/config/sessions/remmina0` during installation.
+
+### Critical: node_action placement in config.param
+
+`node_action=<wm_postsetup>` **must** be at the **top level of the `<sessions>` block**,
+not inside the `<remmina%>` template:
+
+```xml
+<!-- CORRECT — node_action at top level -->
+<sessions>
+    <remmina%>
+        extends_base=<sessions.base%>
+    </remmina%>
+    <remmina0>
+        ...
+    </remmina0>
+    node_action=<wm_postsetup>    <!-- HERE, outside remmina% -->
+</sessions>
+```
+
+```xml
+<!-- WRONG — node_action inside template -->
+<sessions>
+    <remmina%>
+        extends_base=<sessions.base%>
+        node_action=<wm_postsetup>    <!-- causes session script to be deleted on reboot -->
+    </remmina%>
+    ...
+</sessions>
+```
+
+**Why this matters:** When `node_action` is inside the template, IGEL's wm_postsetup
+takes ownership of the `remmina0` session script — deleting it on every reboot and
+attempting to regenerate it from `setup.ini`. Since `cmd` is never automatically
+written to `setup.ini` for community apps (without UMS), the script is never
+recreated and every launch fails with `/config/sessions/remmina0: not found`.
+
+With `node_action` at the top level (matching the pattern used in the
+[IGEL-OS-APP-RECIPES](https://github.com/IGEL-Community/IGEL-OS-APP-RECIPES) SuperTuxKart
+example), the file from `input/all/config/sessions/remmina0` is left untouched and
+persists across reboots.
 
 ---
 
 ## Updating versions
 
-Edit `build/Dockerfile` to change component versions:
+Edit `build/Dockerfile`:
 
 ```dockerfile
-ENV FREERDP_VERSION=3.24.0   # change to new tag
-ENV REMMINA_VERSION=v1.4.43  # change to new tag
+ENV FREERDP_VERSION=3.24.0   # new tag from github.com/FreeRDP/FreeRDP
+ENV REMMINA_VERSION=v1.4.43  # new tag from gitlab.com/Remmina/Remmina
 ```
 
-Update `app.json` accordingly:
+Edit `app.json`:
 
 ```json
-"version": "1.4.43+0.1.rc.1"
+"version": "1.4.43+0.1.rc.1"   # format: remmina_version+igel_build
 ```
 
-After rebuilding, update `igel/checksums.json` with the SHA256 of the new `remmina.tar.bz2`:
-
-```bash
-sha256sum remmina.tar.bz2
-```
+Then rebuild from Step 1.
 
 ---
 
-## Why Debian Bookworm as build base?
+## Troubleshooting
 
-IGEL OS 12 is itself based on Debian Bookworm. The previous build used Ubuntu 22.04,
-which caused library version mismatches at runtime (e.g. `libssl`, `libavahi`, `libfreerdp`).
-Switching to Debian Bookworm as the build base ensures that compiled binaries link against
-the same library versions available on the target device.
+**"libXxx: not found" on startup**
+Add the missing library to the `copy_lib` section in `build/build-tar.sh` and rebuild.
 
-## Why FreeRDP 3.x?
+**RDP plugin not shown in Remmina**
+Check that the FreeRDP 3 libs are present and the plugin RPATH is correct:
+```bash
+ldd /services/remmina/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-rdp.so
+```
 
-IGEL OS ships FreeRDP 2.x which lacks:
-- Correct NLA with modern CredSSP (Kerberos/NTLM)
-- Smartcard passthrough (`/smartcard` redirector)
-- Several security fixes for RDS environments
+**"/config/sessions/remmina0: not found" after reboot**
+Verify that `node_action=<wm_postsetup>` is at the top level in `config.param` (see above).
+Check that the file exists immediately after install (before rebooting).
 
-FreeRDP 3.x is compiled with:
-- `WITH_PCSC=ON` — PC/SC smartcard support
-- `WITH_KRB5=ON` — Kerberos authentication
-- `WITH_GSSAPI=ON` — GSSAPI for NLA
-- `WITH_FFMPEG=ON` — hardware-accelerated codec support
+**Signature verification failed on install**
+```bash
+ls /wfs/cmty/certs/community.crt   # must exist
+# If missing: copy the cert and reboot
+```
+
+**Package size over 20 MB**
+FFmpeg or ICU is being bundled. Make sure the build base is Debian Bookworm, not Ubuntu.
+These libraries match IGEL OS and must not be bundled.
